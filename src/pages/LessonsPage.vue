@@ -1,137 +1,336 @@
 <template>
-  <div class="min-h-screen bg-gray-50 p-4 md:p-8">
-    <div class="mx-auto max-w-6xl">
-      <!-- Заголовок -->
-      <header class="mb-8 text-center">
-        <h1 class="mb-2 text-3xl font-bold text-gray-800 md:text-4xl">📚 Курс по эфирным маслам</h1>
-        <p class="text-gray-600">Изучайте уроки и проверяйте свои знания</p>
-      </header>
-
-      <!-- Контейнер урока -->
-      <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
-        <!-- Заголовок текущего урока -->
-        <div class="border-b border-gray-200 bg-gradient-to-r from-green-50 to-emerald-100 px-6 py-4">
-          <h2 class="text-2xl font-bold text-gray-800">📖 {{ currentLesson.title }}</h2>
-          <div class="mt-2 flex items-center text-gray-600">
-            <el-icon class="mr-2"><VideoCamera /></el-icon>
-            <span>Урок {{ currentLesson.id }} из {{ lessons.length }}</span>
+  <div class="lessons-view">
+    <!-- Header -->
+    <header class="sticky top-0 z-10 bg-white shadow-sm">
+      <div class="container mx-auto px-4 py-4">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center space-x-3">
+            <el-button type="text" @click="goToHome" class="flex items-center text-gray-600 hover:text-indigo-600">
+              <el-icon class="mr-1"><ArrowLeft /></el-icon>
+              На главную
+            </el-button>
+            <div class="hidden items-center space-x-3 md:flex">
+              <el-icon class="text-2xl text-indigo-600">
+                <Reading />
+              </el-icon>
+              <h1 class="text-xl font-bold text-gray-800 md:text-2xl">Курс по ароматерапии</h1>
+            </div>
+          </div>
+          <div class="flex items-center space-x-2">
+            <span class="hidden text-sm text-gray-600 md:inline"> Урок {{ currentLessonIndex + 1 }} из {{ lessons.length }} </span>
+            <el-progress :percentage="progressPercentage" :stroke-width="6" :show-text="false" class="hidden w-24 md:block" />
           </div>
         </div>
+      </div>
+    </header>
 
-        <!-- Вкладки -->
-        <el-tabs v-model="activeTab" class="lesson-tabs">
-          <el-tab-pane label="📝 Теория" name="theory">
-            <TheoryTab :lesson="currentLesson" />
-          </el-tab-pane>
-          <el-tab-pane label="❓ Вопросы" name="questions">
-            <QuestionsTab :questions="currentLesson.questions" @answer-selected="handleAnswer" />
-          </el-tab-pane>
-          <el-tab-pane label="📊 Результаты" name="results" v-if="userAnswers.length > 0">
-            <ResultsTab :user-answers="userAnswers" :total-questions="currentLesson.questions.length" />
-          </el-tab-pane>
-        </el-tabs>
+    <main class="container mx-auto px-4 py-6 md:py-8">
+      <div class="flex flex-col gap-6 lg:flex-row">
+        <!-- Основной контент -->
+        <div class="lg:w-2/3">
+          <LessonCard
+            :lesson="currentLesson"
+            :selected-answers="userAnswers[currentLesson.id] || {}"
+            :show-feedback="showFeedback"
+            @answer-selected="handleAnswerSelected"
+          />
+        </div>
+
+        <!-- Боковая панель -->
+        <div class="lg:w-1/3">
+          <div class="sticky top-20">
+            <!-- Прогресс -->
+            <div class="mb-6 rounded-lg bg-white p-4 shadow-md">
+              <h3 class="mb-3 font-semibold text-gray-800">Прогресс обучения</h3>
+              <div class="space-y-2">
+                <div class="flex justify-between text-sm">
+                  <span class="text-gray-600">Пройдено уроков:</span>
+                  <span class="font-medium">{{ completedLessonsCount }}/{{ lessons.length }}</span>
+                </div>
+                <el-progress :percentage="progressPercentage" :stroke-width="10" :format="() => ''" />
+              </div>
+            </div>
+
+            <!-- Навигация по урокам -->
+            <div class="mb-6 rounded-lg bg-white p-4 shadow-md">
+              <h3 class="mb-3 font-semibold text-gray-800">Все уроки</h3>
+              <div class="max-h-80 space-y-2 overflow-y-auto">
+                <div
+                  v-for="lesson in lessons"
+                  :key="lesson.id"
+                  @click="goToLesson(lesson.id)"
+                  class="cursor-pointer rounded-lg p-3 transition-colors duration-200"
+                  :class="{
+                    'border-l-4 border-indigo-500 bg-indigo-100': lesson.id === currentLesson.id,
+                    'hover:bg-gray-50': lesson.id !== currentLesson.id,
+                    'opacity-100': isLessonAvailable(lesson.id),
+                    'opacity-60': !isLessonAvailable(lesson.id),
+                  }"
+                >
+                  <div class="flex items-center">
+                    <div
+                      class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full"
+                      :class="{
+                        'bg-indigo-500 text-white': lesson.id === currentLesson.id,
+                        'bg-gray-200 text-gray-600': lesson.id !== currentLesson.id,
+                      }"
+                    >
+                      {{ lesson.id }}
+                    </div>
+                    <div class="ml-3">
+                      <h4 class="truncate text-sm font-medium text-gray-800">
+                        {{ lesson.title }}
+                      </h4>
+                      <div class="mt-1 flex items-center">
+                        <div v-if="isLessonCompleted(lesson.id)" class="flex items-center text-xs text-green-600">
+                          <el-icon size="12"><CircleCheck /></el-icon>
+                          <span class="ml-1">Завершен</span>
+                        </div>
+                        <div v-else class="text-xs text-gray-500">{{ lesson.questions.length }} вопросов</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Статистика -->
+            <div class="rounded-lg bg-white p-4 shadow-md">
+              <h3 class="mb-3 font-semibold text-gray-800">Ваша статистика</h3>
+              <div class="grid grid-cols-2 gap-4">
+                <div class="rounded-lg bg-blue-50 p-3 text-center">
+                  <div class="text-2xl font-bold text-blue-600">{{ correctAnswersCount }}</div>
+                  <div class="mt-1 text-xs text-blue-500">Правильных ответов</div>
+                </div>
+                <div class="rounded-lg bg-green-50 p-3 text-center">
+                  <div class="text-2xl font-bold text-green-600">{{ progressPercentage }}%</div>
+                  <div class="mt-1 text-xs text-green-500">Прогресс курса</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <!-- Навигация -->
+      <!-- Навигационные кнопки -->
       <div class="mt-8 flex justify-between">
-        <el-button :disabled="selectedLessonId === 1" @click="prevLesson" type="primary" plain>
+        <el-button type="default" :disabled="currentLessonIndex === 0" @click="goToPreviousLesson" class="flex items-center">
           <el-icon class="mr-2"><ArrowLeft /></el-icon>
           Предыдущий урок
         </el-button>
 
-        <div class="flex items-center space-x-4">
-          <el-button v-if="activeTab !== 'theory'" @click="activeTab = 'theory'" type="success" plain> К теории </el-button>
-          <el-button v-if="activeTab !== 'questions'" @click="activeTab = 'questions'" type="warning" plain> К вопросам </el-button>
-        </div>
-
         <el-button
-          :disabled="
-            selectedLessonId === lessons.length || (activeTab !== 'results' && userAnswers.length !== currentLesson.questions.length)
-          "
-          @click="nextLesson"
+          v-if="currentLessonIndex < lessons.length - 1"
           type="primary"
+          :disabled="!isCurrentLessonCompleted"
+          @click="goToNextLesson"
+          class="flex items-center"
         >
           Следующий урок
           <el-icon class="ml-2"><ArrowRight /></el-icon>
         </el-button>
+
+        <el-button v-else type="success" :disabled="!isCurrentLessonCompleted" @click="completeCourse" class="flex items-center">
+          <el-icon class="mr-2"><CircleCheck /></el-icon>
+          Завершить курс
+        </el-button>
       </div>
-    </div>
+    </main>
+
+    <!-- Уведомление о завершении урока -->
+    <el-dialog v-model="showCompletionDialog" title="Урок завершен!" width="90%" class="max-w-md">
+      <div class="py-4 text-center">
+        <el-icon class="mb-4 text-4xl text-green-500">
+          <CircleCheckFilled />
+        </el-icon>
+        <p class="mb-2 text-gray-700">
+          Вы успешно завершили урок
+          <span class="font-semibold">"{{ currentLesson.title }}"</span>
+        </p>
+        <p class="text-sm text-gray-500">Правильных ответов: {{ currentLessonCorrectAnswers }}/{{ currentLesson.questions.length }}</p>
+      </div>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="showCompletionDialog = false">Продолжить</el-button>
+          <el-button type="primary" @click="goToNextLesson" v-if="currentLessonIndex < lessons.length - 1"> Следующий урок </el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
-import { VideoCamera, ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
-
-import TheoryTab from '@/components/TheoryTab.vue'
-import QuestionsTab from '@/components/QuestionsTab.vue'
-import ResultsTab from '@/components/ResultsTab.vue'
-
+import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import LessonCard from '@/components/LessonCard.vue'
 import { lessons } from '@/data/lessons'
+import type { UserAnswer } from '@/types'
+import { Reading, ArrowLeft, ArrowRight, CircleCheck, CircleCheckFilled } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 
-import type { Lesson, UserAnswer } from '@/types/lesson'
+const router = useRouter()
 
-// Реактивное состояние
-const selectedLessonId = ref<number>(1)
-const activeTab = ref<string>('theory')
-const userAnswers = ref<UserAnswer[]>([])
+// Состояние
+const currentLessonIndex = ref(0)
+const userAnswers = ref<Record<number, { [key: number]: number }>>({})
+const showFeedback = ref(false)
+const showCompletionDialog = ref(false)
 
-// Текущий урок
-const currentLesson = computed<Lesson>(() => {
-  return lessons.find((lesson) => lesson.id === selectedLessonId.value) || lessons[0]
+// Вычисляемые свойства
+const currentLesson = computed(() => lessons[currentLessonIndex.value])
+
+const completedLessonsCount = computed(() => {
+  return lessons.filter((lesson) => isLessonCompleted(lesson.id)).length
 })
 
-// Навигация по урокам
-const prevLesson = () => {
-  if (selectedLessonId.value > 1) {
-    selectedLessonId.value--
-    resetAnswers()
+const progressPercentage = computed(() => {
+  return Math.round((completedLessonsCount.value / lessons.length) * 100)
+})
+
+const isCurrentLessonCompleted = computed(() => {
+  return isLessonCompleted(currentLesson.value.id)
+})
+
+const correctAnswersCount = computed(() => {
+  let count = 0
+  Object.entries(userAnswers.value).forEach(([lessonId, answers]) => {
+    const lesson = lessons.find((l) => l.id === Number(lessonId))
+    if (lesson) {
+      Object.entries(answers).forEach(([qIndex, aIndex]) => {
+        if (lesson.questions[Number(qIndex)].answers[aIndex].correct) {
+          count++
+        }
+      })
+    }
+  })
+  return count
+})
+
+const currentLessonCorrectAnswers = computed(() => {
+  const answers = userAnswers.value[currentLesson.value.id]
+  if (!answers) return 0
+
+  return Object.entries(answers).reduce((count, [qIndex, aIndex]) => {
+    if (currentLesson.value.questions[Number(qIndex)].answers[aIndex].correct) {
+      return count + 1
+    }
+    return count
+  }, 0)
+})
+
+// Методы
+const goToHome = () => {
+  router.push('/')
+}
+
+const isLessonCompleted = (lessonId: number) => {
+  const answers = userAnswers.value[lessonId]
+  if (!answers) return false
+
+  const lesson = lessons.find((l) => l.id === lessonId)
+  return lesson && Object.keys(answers).length === lesson.questions.length
+}
+
+const isLessonAvailable = (lessonId: number) => {
+  const lessonIndex = lessons.findIndex((l) => l.id === lessonId)
+  if (lessonIndex === 0) return true
+
+  const previousLesson = lessons[lessonIndex - 1]
+  return isLessonCompleted(previousLesson.id)
+}
+
+const handleAnswerSelected = (questionIndex: number, answerIndex: number) => {
+  if (!userAnswers.value[currentLesson.value.id]) {
+    userAnswers.value[currentLesson.value.id] = {}
+  }
+
+  userAnswers.value[currentLesson.value.id][questionIndex] = answerIndex
+  showFeedback.value = true
+
+  // Проверяем, завершен ли урок
+  if (isCurrentLessonCompleted.value) {
+    showCompletionDialog.value = true
+    saveProgress()
   }
 }
 
-const nextLesson = () => {
-  if (selectedLessonId.value < lessons.length) {
-    selectedLessonId.value++
-    resetAnswers()
+const goToLesson = (lessonId: number) => {
+  if (!isLessonAvailable(lessonId)) {
+    ElMessage.warning('Сначала завершите предыдущий урок')
+    return
+  }
+
+  const index = lessons.findIndex((l) => l.id === lessonId)
+  if (index !== -1) {
+    currentLessonIndex.value = index
+    showFeedback.value = false
   }
 }
 
-// Обработка ответов
-const handleAnswer = (data: { questionIndex: number; answerIndex: number; isCorrect: boolean }) => {
-  const existingIndex = userAnswers.value.findIndex((answer) => answer.questionIndex === data.questionIndex)
-
-  if (existingIndex !== -1) {
-    userAnswers.value[existingIndex] = data
-  } else {
-    userAnswers.value.push(data)
-  }
-
-  // Если все вопросы отвечены, переходим на вкладку результатов
-  if (userAnswers.value.length === currentLesson.value.questions.length) {
-    activeTab.value = 'results'
+const goToNextLesson = () => {
+  if (currentLessonIndex.value < lessons.length - 1) {
+    currentLessonIndex.value++
+    showFeedback.value = false
+    showCompletionDialog.value = false
   }
 }
 
-// Сброс ответов при смене урока
-const resetAnswers = () => {
-  userAnswers.value = []
-  activeTab.value = 'theory'
+const goToPreviousLesson = () => {
+  if (currentLessonIndex.value > 0) {
+    currentLessonIndex.value--
+    showFeedback.value = false
+  }
 }
 
-// Следим за сменой урока
-watch(selectedLessonId, resetAnswers)
+const completeCourse = () => {
+  ElMessage.success({
+    message: 'Поздравляем! Вы успешно завершили курс!',
+    duration: 3000,
+  })
+  // Можно добавить переход на главную или страницу с сертификатом
+  router.push('/')
+}
+
+const saveProgress = () => {
+  localStorage.setItem('aromatherapy-course-progress', JSON.stringify(userAnswers.value))
+}
+
+const loadProgress = () => {
+  const saved = localStorage.getItem('aromatherapy-course-progress')
+  if (saved) {
+    userAnswers.value = JSON.parse(saved)
+  }
+}
+
+// Хуки жизненного цикла
+onMounted(() => {
+  loadProgress()
+})
 </script>
 
 <style scoped>
-.lesson-tabs {
-  min-height: 500px;
+.lessons-view {
+  min-height: 100vh;
 }
 
-:deep(.el-tabs__nav-wrap) {
-  padding: 0 24px;
+.container {
+  max-width: 1200px;
 }
 
-:deep(.el-tabs__content) {
-  padding: 24px;
+@media (max-width: 1024px) {
+  .container {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .dialog-footer {
+    @apply flex flex-col;
+  }
+
+  .dialog-footer button {
+    @apply w-full;
+  }
 }
 </style>
